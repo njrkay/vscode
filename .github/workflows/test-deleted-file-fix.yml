@@ -94,7 +94,7 @@ jobs:
         run: |
           set -e
           git fetch --depth=1 origin e8b6d8b546735371b1d04237b0a7c40558ad82a6
-          git checkout e8b6d8b546735371b1d04237b0a7c40558ad82a6 -- extensions/git/src/repository.ts extensions/git/src/decorationProvider.ts
+          git checkout e8b6d8b546735371b1d04237b0a7c40558ad82a6 -- extensions/git/src/repository.ts extensions/git/src/decorationProvider.ts src/vs/workbench/browser/parts/editor/multiEditorTabsControl.ts src/vs/workbench/test/browser/parts/editor/multiEditorTabsControl.test.ts
           git status --short
 
       - name: Transpile client and extensions
@@ -126,6 +126,14 @@ jobs:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
+      - name: Run the editor tabs unit tests (Electron)
+        if: matrix.variant == 'after'
+        timeout-minutes: 20
+        run: ./scripts/test.sh --run src/vs/workbench/test/browser/parts/editor/multiEditorTabsControl.test.ts --run src/vs/workbench/test/browser/labels.test.ts
+        env:
+          DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
+
       - name: Install the screenshot tool
         run: command -v import || sudo apt-get install -y --no-install-recommends imagemagick
 
@@ -153,7 +161,7 @@ jobs:
         run: |
           set -e
           mkdir -p "$SCREENSHOT_DIR"
-          ./scripts/code.sh "$DEMO_REPO" --extensionDevelopmentPath="$PWD/extensions/git" --extensionTestsPath="$PWD/extensions/git/out/test-screenshot" --disable-telemetry --disable-experiments --skip-welcome --skip-release-notes --no-cached-data --disable-updates --use-inmemory-secretstorage --disable-workspace-trust --disable-extensions --user-data-dir="$RUNNER_TEMP/user-data" 2>&1 | grep -E 'TAB:|SCREENSHOT:|Error' || true
+          ./scripts/code.sh "$DEMO_REPO" --extensionDevelopmentPath="$PWD/extensions/git" --extensionTestsPath="$PWD/extensions/git/out/test-screenshot" --disable-telemetry --disable-experiments --skip-welcome --skip-release-notes --no-cached-data --disable-updates --use-inmemory-secretstorage --disable-workspace-trust --disable-extensions --user-data-dir="$RUNNER_TEMP/user-data" 2>&1 | grep -E 'TAB:|SCREENSHOT:|DIAG|Error' || true
           ls -la "$SCREENSHOT_DIR"
         env:
           DISPLAY: ":10"
