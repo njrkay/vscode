@@ -103,3 +103,10 @@ jobs:
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
+
+      - name: Run the new deleted-file smoke test on its own
+        timeout-minutes: 10
+        run: ./scripts/test-integration.sh --suite git --grep 'opens deleted files with their name as the editor title'
+        env:
+          DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
