@@ -1414,6 +1414,37 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual({ expanded: widths[0] > originalWidth, restored: Math.abs(widths[1] - originalWidth) < 1 / 32 }, { expanded: true, restored: true });
 	});
 
+	test('tab aria labels include the tooltip of file decorations', async () => {
+		control.dispose();
+		reset(container);
+		const service = disposables.add(instantiationService.createInstance(DecorationsService));
+		instantiationService.stub(IDecorationsService, service);
+		const changed = disposables.add(new Emitter<readonly URI[]>());
+		const resource = model.getEditorByIndex(1)!.resource!;
+		let tooltip: string | undefined;
+		disposables.add(service.registerDecorationsProvider({
+			label: 'Deleted files',
+			onDidChange: changed.event,
+			provideDecorations: uri => tooltip && uri.toString() === resource.toString() ? { tooltip } : undefined,
+		}));
+		control = createControl();
+		const tab = container.querySelectorAll<HTMLElement>('.tab')[1];
+		const plainAriaLabel = tab.getAttribute('aria-label');
+		const ariaLabels: (string | null)[] = [];
+		for (const value of ['Deleted', undefined]) {
+			tooltip = value;
+			changed.fire([resource]);
+			const expected = value ? `${plainAriaLabel}, ${value}` : plainAriaLabel;
+			const deadline = Date.now() + 3000;
+			while (tab.getAttribute('aria-label') !== expected && Date.now() < deadline) {
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			}
+			ariaLabels.push(tab.getAttribute('aria-label'));
+		}
+		assert.deepStrictEqual(ariaLabels, [`${plainAriaLabel}, Deleted`, plainAriaLabel]);
+		assert.ok(plainAriaLabel?.includes('file1.txt'));
+	});
+
 	test('connected fit tabs reallocate filename width to transient actions', async () => {
 		const group = connectedGroup();
 		openNamedEditors(['a-natural-width-label-longer-than-the-short-fit-minimum.ts', 'another-natural-width-label-longer-than-the-short-fit-minimum.ts']);

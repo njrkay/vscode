@@ -44,6 +44,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { basenameOrAuthority } from '../../../../base/common/resources.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
+import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { IPath, win32, posix } from '../../../../base/common/path.js';
 import { coalesce, insert } from '../../../../base/common/arrays.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
@@ -179,6 +180,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IHostService hostService: IHostService,
 		@IMenuService menuService: IMenuService,
 		@IModelService modelService: IModelService,
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
 	) {
 		super(parent, editorPartsView, groupsView, groupView, tabsModel, menuIds, breadcrumbsInHeader, useModernUITabs, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, menuService, modelService);
 
@@ -638,7 +640,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doHandleDecorationsChange(): void {
-		this.forEachTab((_editor, _index, tab) => tab.style.removeProperty('--tab-sizing-fit-width'));
+		this.forEachTab((editor, _index, tab, _tabLabelWidget, tabLabel) => {
+			tab.style.removeProperty('--tab-sizing-fit-width');
+
+			// The aria label includes the tooltip of the decorations
+			if (tabLabel.ariaLabel) {
+				tab.setAttribute('aria-label', this.computeTabAriaLabel(editor, tabLabel.ariaLabel));
+			}
+		});
 
 		// A change to decorations potentially has an impact on the size of tabs
 		// so we need to trigger a layout in that case to adjust things
@@ -1845,6 +1854,22 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
 	}
 
+	private computeTabAriaLabel(editor: EditorInput, ariaLabel: string): string {
+
+		// File decorations show state such as "Deleted" only through color,
+		// a badge and a tooltip, so add their tooltip for screen readers
+		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (!resource) {
+			return ariaLabel;
+		}
+
+		const decoration = this.decorationsService.getDecoration(resource, false);
+		const tooltip = decoration?.tooltip;
+		decoration?.dispose();
+
+		return tooltip ? localize('tabAriaLabelWithDecoration', "{0}, {1}", ariaLabel, tooltip) : ariaLabel;
+	}
+
 	private redrawTabLabel(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
 		tabContainer.style.removeProperty('--tab-sizing-fit-width');
 		const options = this.groupsView.partOptions;
@@ -1871,7 +1896,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		if (tabLabel.ariaLabel) {
-			tabContainer.setAttribute('aria-label', tabLabel.ariaLabel);
+			tabContainer.setAttribute('aria-label', this.computeTabAriaLabel(editor, tabLabel.ariaLabel));
 			// Set aria-description to empty string so that screen readers would not read the title as well
 			// More details https://github.com/microsoft/vscode/issues/95378
 			tabContainer.setAttribute('aria-description', '');
