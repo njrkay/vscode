@@ -1,0 +1,105 @@
+# Temporary workflow on a test branch of a fork: builds VS Code and runs the git
+# extension's integration tests (including the new deleted-file smoke test) for
+# fix/scm-deleted-file-decoration. Not part of the pull request.
+name: Test deleted-file fix (git extension)
+
+on:
+  push:
+    branches:
+      - test/scm-deleted-file-decoration
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NPM_ARCH: x64
+  VSCODE_ARCH: x64
+  VSCODE_SKIP_PRELAUNCH: '1'
+
+jobs:
+  git-extension-tests:
+    name: Git extension tests (Electron)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
+
+      - name: Setup system services
+        run: |
+          set -e
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+          sudo chmod +x /etc/init.d/xvfb
+          sudo update-rc.d xvfb defaults
+          sudo service xvfb start
+
+      - name: Install build dependencies
+        working-directory: build
+        run: |
+          set -e
+          for i in {1..5}; do
+            pnpm install --frozen-lockfile && break
+            if [ $i -eq 5 ]; then echo "pnpm install failed too many times" >&2; exit 1; fi
+            echo "pnpm install failed $i, trying again..."
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          set -e
+          source ./build/azure-pipelines/linux/setup-env.sh
+          for i in {1..5}; do
+            pnpm install --frozen-lockfile && break
+            if [ $i -eq 5 ]; then echo "pnpm install failed too many times" >&2; exit 1; fi
+            echo "pnpm install failed $i, trying again..."
+          done
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download built-in extensions
+        run: |
+          set -e
+          mkdir -p .build
+          node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Transpile client and extensions
+        run: pnpm run gulp transpile-client-esbuild transpile-extensions
+
+      - name: Setup Electron
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile the git extensions
+        run: pnpm run gulp compile-extension:git compile-extension:git-base
+
+      - name: Run the git extension tests (Electron)
+        timeout-minutes: 20
+        run: ./scripts/test-integration.sh --suite git
+        env:
+          DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
