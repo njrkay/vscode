@@ -8,7 +8,7 @@
 
 import * as cp from 'child_process';
 import * as path from 'path';
-import { commands, extensions, window, workspace } from 'vscode';
+import { commands, extensions, TabInputText, window, workspace } from 'vscode';
 import type { GitExtension } from '../api/git';
 import { Status } from '../api/git.constants';
 import type { GitExtensionImpl } from '../api/extension';
@@ -26,7 +26,7 @@ function capture(name: string): void {
 
 function logTabs(): void {
 	for (const tab of window.tabGroups.activeTabGroup.tabs) {
-		console.log(`TAB: "${tab.label}"${tab.isActive ? ' (active)' : ''}`);
+		console.log(`TAB: "${tab.label}"${tab.isActive ? ' (active)' : ''} ${tab.input instanceof TabInputText ? tab.input.uri.toString() : ''}`);
 	}
 }
 
@@ -59,6 +59,7 @@ export async function run(): Promise<void> {
 
 	// Open each file the way a click in Source Control does, as a pinned editor so both tabs stay
 	for (const [name, resource] of [['1-deleted', deleted], ['2-staged-deleted', stagedDeleted]] as const) {
+		console.log(`DIAG open ${name}: ${resource.command.command} ${resource.command.arguments?.[0]?.toString()} right=${resource.rightUri?.toString()}`);
 		await commands.executeCommand(resource.command.command, ...(resource.command.arguments ?? []));
 		await commands.executeCommand('workbench.action.keepEditor');
 		await commands.executeCommand('notifications.clearAll');
@@ -66,4 +67,9 @@ export async function run(): Promise<void> {
 		logTabs();
 		capture(name);
 	}
+
+	// Wait longer in case a decoration arrives late, and capture again
+	await sleep(8000);
+	logTabs();
+	capture('3-staged-deleted-later');
 }

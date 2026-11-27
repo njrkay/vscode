@@ -149,6 +149,10 @@ class GitDecorationProvider implements FileDecorationProvider {
 		this.collectSubmoduleDecorationData(newDecorations);
 
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
+		if (process.env['SCREENSHOT_DIR']) {
+			console.log(`DIAG status: index=${this.repository.indexChanges.map(r => `${r.type}:${r.rightUri?.toString()}`).join(' | ')}`);
+			console.log(`DIAG keys: ${[...newDecorations.keys()].join(' | ')}`);
+		}
 		this.decorations = newDecorations;
 		this._onDidChangeDecorations.fire([...uris.values()].map(value => Uri.parse(value, true)));
 	}
@@ -181,6 +185,9 @@ class GitDecorationProvider implements FileDecorationProvider {
 	}
 
 	provideFileDecoration(uri: Uri): FileDecoration | undefined {
+		if (process.env['SCREENSHOT_DIR'] && uri.scheme === 'git') {
+			console.log(`DIAG provide ${uri.toString()} -> ${this.decorations.get(uri.toString())?.tooltip}`);
+		}
 		return this.decorations.get(uri.toString());
 	}
 
