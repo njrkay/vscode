@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [after, before]
+        variant: [after, after-git-only, before]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -97,6 +97,15 @@ jobs:
           git checkout e8b6d8b546735371b1d04237b0a7c40558ad82a6 -- extensions/git/src/repository.ts extensions/git/src/decorationProvider.ts src/vs/workbench/browser/parts/editor/multiEditorTabsControl.ts src/vs/workbench/test/browser/parts/editor/multiEditorTabsControl.test.ts
           git status --short
 
+      # 'after-git-only' keeps the git extension fix but puts back main's editor tabs code
+      - name: Use main's editor tabs code
+        if: matrix.variant == 'after-git-only'
+        run: |
+          set -e
+          git fetch --depth=1 origin e8b6d8b546735371b1d04237b0a7c40558ad82a6
+          git checkout e8b6d8b546735371b1d04237b0a7c40558ad82a6 -- src/vs/workbench/browser/parts/editor/multiEditorTabsControl.ts src/vs/workbench/test/browser/parts/editor/multiEditorTabsControl.test.ts
+          git status --short
+
       - name: Transpile client and extensions
         run: pnpm run gulp transpile-client-esbuild transpile-extensions
 
@@ -135,7 +144,7 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Install the screenshot tool
-        run: command -v import || sudo apt-get install -y --no-install-recommends imagemagick
+        run: sudo apt-get install -y --no-install-recommends imagemagick xdotool
 
       - name: Prepare a repository with a deleted and a staged-deleted file
         run: |

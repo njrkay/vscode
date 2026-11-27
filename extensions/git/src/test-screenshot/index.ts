@@ -72,4 +72,13 @@ export async function run(): Promise<void> {
 	await sleep(8000);
 	logTabs();
 	capture('3-staged-deleted-later');
+
+	// Hover each tab to show its tooltip
+	for (const [name, x] of [['4-deleted-hover', 370], ['5-staged-deleted-hover', 495]] as const) {
+		cp.execFileSync('xdotool', ['mousemove', String(x), '51'], { env: { ...process.env, DISPLAY: process.env['DISPLAY'] ?? ':10' } });
+		await sleep(3000);
+		capture(name);
+		cp.execFileSync('xdotool', ['mousemove', '700', '400'], { env: { ...process.env, DISPLAY: process.env['DISPLAY'] ?? ':10' } });
+		await sleep(1000);
+	}
 }
